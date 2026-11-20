@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>考試專用倒數計時器</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* AI 語音廣播按鈕狀態 */
+        .top-actions button:disabled {
+            cursor: default;
+            opacity: 0.7;
+        }
+
+        .top-actions button.tts-loading {
+            border-color: #f59e0b;
+            color: #fbbf24;
+        }
+
+        .top-actions button.tts-ready {
+            background: #10b981;
+            border-color: #10b981;
+            color: #052e22;
+            font-weight: 700;
+        }
+
+        .top-actions button.tts-ready:hover {
+            background: #34d399;
+        }
+
+        .top-actions button.tts-error {
+            background: #7f1d1d;
+            border-color: #b91c1c;
+            color: #fecaca;
+        }
+
+        #ttsPreviewBtn {
+            padding-left: 0.8rem;
+            padding-right: 0.8rem;
+        }
+
+        /* ===== 功能介紹彈出視窗 ===== */
+        .help-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 3vh 3vw;
+            background: rgba(2, 6, 23, 0.78);
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+        }
+
+        .help-modal.open {
+            display: flex;
+        }
+
+        .help-panel {
+            display: flex;
+            flex-direction: column;
+            width: min(1000px, 100%);
+            max-height: 90vh;
+            max-height: 90dvh;
+            background: #111c33;
+            border: 1px solid #334155;
+            border-radius: 18px;
+            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+        }
+
+        .help-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1.1rem 1.5rem;
+            background: #16233c;
+            border-bottom: 1px solid #334155;
+        }
+
+        .help-title {
+            font-size: clamp(1.25rem, 2.4vw, 1.8rem);
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        .help-subtitle {
+            margin-top: 0.15rem;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .help-close {
+            flex: none;
+            width: 2.4rem;
+            height: 2.4rem;
+            border-radius: 50%;
+            border: 1px solid #475569;
+            background: transparent;
+            color: var(--text-main);
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .help-close:hover {
+            background: #334155;
+        }
+
+        .help-body {
+            padding: 1.3rem 1.5rem;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            line-height: 1.65;
+            color: #cbd5e1;
+            user-select: text;
+        }
+
+        .help-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+            gap: 0.9rem;
+        }
+
+        .help-card {
+            background: rgba(30, 41, 59, 0.55);
+            border: 1px solid #2b3b55;
+            border-radius: 12px;
+            padding: 0.95rem 1.05rem;
+        }
+
+        .help-card h3 {
+            margin-bottom: 0.45rem;
+            font-size: 1.05rem;
+            color: var(--text-main);
+        }
+
+        .help-card ul {
+            margin-left: 1.15rem;
+        }
+
+        .help-card li {
+            margin: 0.2rem 0;
+            font-size: 0.95rem;
+        }
+
+        .help-card li::marker {
+            color: #38bdf8;
+        }
+
+        .help-note {
+            margin-top: 1rem;
+            padding: 0.7rem 0.9rem;
+            border-radius: 10px;
+            background: rgba(56, 189, 248, 0.08);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            color: #bae6fd;
+            font-size: 0.92rem;
+        }
+
+        .help-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.85rem 1.5rem;
+            background: #16233c;
+            border-top: 1px solid #334155;
+        }
+
+        .help-hint {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .help-ok {
+            padding: 0.55rem 1.3rem;
+            border: none;
+            border-radius: 8px;
+            background: #38bdf8;
+            color: #082f49;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: filter 0.2s;
+        }
+
+        .help-ok:hover {
+            filter: brightness(1.08);
+        }
+
+        @media (max-width: 768px) {
+            .help-modal { padding: 2vh 2vw; }
+            .help-header { padding: 0.8rem 1rem; }
+            .help-body { padding: 1rem; }
+            .help-footer { padding: 0.7rem 1rem; }
+            .help-hint { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 頂部資訊列 -->
+    <div class="top-bar">
+        <div class="current-clock" id="currentClock">現在時間：--:--:--</div>
+        <div class="top-actions">
+            <button id="ttsEnableBtn" type="button"
+                    title="點擊後才會下載中文語音模型（約數十 MB），不影響倒數計時器秒開">🎙️ 啟用 AI 語音廣播（需下載模型）</button>
+            <button id="ttsPreviewBtn" type="button" title="播放一段示範廣播，測試大電視的喇叭音量" disabled>🔊 試聽廣播</button>
+            <button id="soundBtn" type="button" title="切換結束提示音">🔔 結束提示音：開</button>
+            <button id="togglePanelBtn" type="button" title="隱藏或顯示下方設定列">👁️ 隱藏設定列</button>
+            <button id="fullScreenBtn" type="button" title="進入或離開全螢幕">⛶ 全螢幕</button>
+            <button id="helpBtn" type="button" title="查看計時器與 AI 語音廣播的功能說明"
+                    aria-haspopup="dialog" aria-controls="helpModal">❓ 功能介紹</button>
+        </div>
+    </div>
+
+    <!-- 中央主要顯示區 -->
+    <div class="main-display">
+        <div class="subject-title" id="subjectTitle" contenteditable="true" spellcheck="false"
+             title="點擊可直接修改科目名稱">第一節：國文科</div>
+        <div class="subject-hint" id="subjectHint">（點擊上方文字可直接修改考試科目）</div>
+        <div class="timer-display" id="timerDisplay">50:00</div>
+        <div class="status-text" id="statusText">準備就緒，請設定時間後按開始</div>
+    </div>
+
+    <!-- 底部設定與操作區 -->
+    <div class="control-panel" id="controlPanel">
+        <!-- 方式一：輸入分鐘 -->
+        <div class="setting-group">
+            <label for="minutesInput">考試時長：</label>
+            <input type="number" id="minutesInput" value="50" min="1" max="300" inputmode="numeric">
+            <span>分鐘</span>
+            <button class="btn btn-set" id="applyMinutesBtn" type="button">套用</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- 方式二：指定結束時刻 -->
+        <div class="setting-group">
+            <label for="endTimeInput">或指定結束時間：</label>
+            <input type="time" id="endTimeInput">
+            <button class="btn btn-set" id="applyEndTimeBtn" type="button">計算</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- 播放控制 -->
+        <div class="setting-group">
+            <button class="btn btn-start" id="startBtn" type="button">▶ 開始計時</button>
+            <button class="btn btn-pause" id="pauseBtn" type="button" style="display:none;">⏸ 暫停</button>
+            <button class="btn btn-reset" id="resetBtn" type="button">↺ 重設</button>
+        </div>
+    </div>
+
+    <!-- =========================================================
+         功能介紹彈出視窗
+         ========================================================= -->
+    <div class="help-modal" id="helpModal" aria-hidden="true">
+        <div class="help-panel" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+            <div class="help-header">
+                <div>
+                    <div class="help-title" id="helpTitle">📖 功能介紹</div>
+                    <div class="help-subtitle">考試專用倒數計時器</div>
+                </div>
+                <button class="help-close" id="helpCloseBtn" type="button"
+                        aria-label="關閉功能介紹" data-help-close>✕</button>
+            </div>
+
+            <div class="help-body">
+                <div class="help-grid">
+                    <section class="help-card">
+                        <h3>⏱️ 計時核心</h3>
+                        <ul>
+                            <li>大型 MM:SS 倒數，超過 60 分鐘也能顯示</li>
+                            <li>以結束時間戳計算，切換分頁或休眠後仍準確</li>
+                            <li>開始、暫停、重設；暫停會保留當下剩餘時間</li>
+                            <li>歸零自動響起三響鐘聲</li>
+                        </ul>
+                    </section>
+
+                    <section class="help-card">
+                        <h3>⚙️ 時間設定</h3>
+                        <ul>
+                            <li>直接輸入考試時長（1～300 分鐘）後按「套用」</li>
+                            <li>或指定考試結束時刻，自動換算剩餘時間</li>
+                            <li>科目、時長與提示音設定會自動記憶</li>
+                        </ul>
+                    </section>
+
+                    <section class="help-card">
+                        <h3>🎨 狀態提示</h3>
+                        <ul>
+                            <li>剩 10 分鐘：倒數轉為琥珀黃</li>
+                            <li>剩 3 分鐘：倒數轉為警示紅</li>
+                            <li>歸零：顯示紅色結束狀態</li>
+                            <li>頂部即時顯示現在時間</li>
+                        </ul>
+                    </section>
+
+                    <section class="help-card">
+                        <h3>🎙️ AI 語音廣播</h3>
+                        <ul>
+                            <li>點「啟用 AI 語音廣播」才會下載模型</li>
+                            <li>開始、剩 10 分、剩 3 分、歸零自動播報</li>
+                            <li>可用「試聽廣播」先測試喇叭音量</li>
+                            <li>每個時機只播一次，重設後重新計算</li>
+                            <li>未啟用時仍保留原本鐘聲</li>
+                        </ul>
+                    </section>
+
+                    <section class="help-card">
+                        <h3>🖥️ 考場操作</h3>
+                        <ul>
+                            <li>科目名稱可直接點擊修改</li>
+                            <li>可隱藏設定列、切換全螢幕</li>
+                            <li>結束提示音可依需求開關</li>
+                            <li>快捷鍵：空白鍵開始／暫停、R 重設、F 全螢幕</li>
+                        </ul>
+                    </section>
+
+                    <section class="help-card">
+                        <h3>✅ 考前建議</h3>
+                        <ul>
+                            <li>設定時間 → 修改科目 → 啟用語音</li>
+                            <li>按「試聽廣播」確認大電視音量</li>
+                            <li>按「開始計時」後，提醒會自動播報</li>
+                            <li>不用 AI 語音時，直接開始也能正常響鐘</li>
+                        </ul>
+                    </section>
+                </div>
+
+                <p class="help-note">
+                    💡 功能介紹開啟時，倒數仍會繼續進行，不會影響考試時間。
+                </p>
+            </div>
+
+            <div class="help-footer">
+                <span class="help-hint">按 Esc 或點擊背景也可關閉</span>
+                <button class="help-ok" type="button" data-help-close>了解，關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const helpModal = document.getElementById('helpModal');
+            const helpBtn = document.getElementById('helpBtn');
+            const helpCloseBtn = document.getElementById('helpCloseBtn');
+
+            function openHelp() {
+                helpModal.classList.add('open');
+                helpModal.setAttribute('aria-hidden', 'false');
+                helpCloseBtn.focus({ preventScroll: true });
+            }
+
+            function closeHelp() {
+                if (!helpModal.classList.contains('open')) return;
+                helpModal.classList.remove('open');
+                helpModal.setAttribute('aria-hidden', 'true');
+                helpBtn.focus({ preventScroll: true });
+            }
+
+            helpBtn.addEventListener('click', openHelp);
+
+            helpModal.addEventListener('click', (event) => {
+                if (event.target === helpModal || event.target.closest('[data-help-close]')) {
+                    closeHelp();
+                }
+            });
+
+            // 讓 Tab 鍵在說明視窗內循環，不會跑到背景的計時器按鈕
+            helpModal.addEventListener('keydown', (event) => {
+                if (event.key !== 'Tab') return;
+
+                const focusables = Array.from(helpModal.querySelectorAll(
+                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                )).filter((el) => !el.disabled);
+
+                if (focusables.length === 0) return;
+
+                const first = focusables[0];
+                const last = focusables[focusables.length - 1];
+
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            });
+
+            // 說明視窗開啟時，攔截計時器快捷鍵（空白鍵、R、F），避免誤觸
+            document.addEventListener('keydown', (event) => {
+                if (!helpModal.classList.contains('open')) return;
+
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                    closeHelp();
+                    return;
+                }
+
+                if (event.key === 'Tab') return; // 保留正常的焦點切換
+
+                event.stopImmediatePropagation();
+            }, true);
+        })();
+    </script>
+
+    <script src="script.js"></script>
+
+    <!-- =========================================================
+         AI 真人語音廣播（Hugging Face Transformers.js）
+         - 使用者按下「啟用」才動態載入函式庫與模型，計時器仍可秒開
+         - 模型：BricksDisplay/vits-cmn（中文 VITS，量化版約 38MB）
+           註：Xenova/mms-tts-cmn 在 Hugging Face 上並不存在，改用同為
+           VITS 架構、支援中文且提供 Transformers.js ONNX 的輕量模型。
+         - 中文需先以 pinyin-pro 轉成帶聲調拼音，再送進模型
+         - 模型輸出 Float32Array → Web Audio API AudioBuffer 播放
+         ========================================================= -->
+    <script type="module">
+        const TRANSFORMERS_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@latest';
+        const PINYIN_CDN = 'https://cdn.jsdelivr.net/npm/pinyin-pro@3/+esm';
+        const TTS_MODEL_ID = 'BricksDisplay/vits-cmn';
+
+        const BROADCAST_TEXT = {
+            start: '考試開始，請同學開始作答。',
+            tenMinutes: '提醒各位同學，距離考試結束還有十分鐘，請把握時間。',
+            threeMinutes: '距離考試結束還有三分鐘，請檢查答案卡與姓名座號。',
+            finish: '考試時間結束，請停止作答，並將考卷與答案卡放在桌上。',
+            preview: '試聽廣播，距離考試結束還有十分鐘，請把握時間。',
+        };
+
+        /* 原本的鐘聲共三響（約 2.1 秒），留一點尾韻後再開口廣播 */
+        const BELL_TAIL_MS = 2400;
+
+        const enableBtn = document.getElementById('ttsEnableBtn');
+        const previewBtn = document.getElementById('ttsPreviewBtn');
+
+        let synthesizer = null;
+        let toPinyin = null;
+        let ttsReady = false;
+        let ttsLoading = false;
+        let ttsAudioCtx = null;
+        let activeSource = null;
+        let endAnnouncementTimer = null;
+        let speakChain = Promise.resolve();
+        let speakGeneration = 0;
+
+        /* ---------------------- 音訊播放 ---------------------- */
+
+        function getAudioContext() {
+            if (!ttsAudioCtx) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return null;
+                ttsAudioCtx = new AudioCtx();
+            }
+            if (ttsAudioCtx.state === 'suspended') {
+                ttsAudioCtx.resume().catch(() => {});
+            }
+            return ttsAudioCtx;
+        }
+
+        // 把模型輸出的 Float32Array 包成 AudioBuffer 直接播放
+        function playFloat32Audio(audio, samplingRate) {
+            const ctx = getAudioContext();
+            if (!ctx) return;
+
+            const data = audio instanceof Float32Array ? audio : new Float32Array(audio);
+            if (data.length === 0) return;
+
+            const rate = Number(samplingRate) > 0 ? Number(samplingRate) : 16000;
+            const buffer = ctx.createBuffer(1, data.length, rate);
+            buffer.getChannelData(0).set(data);
+
+            stopSpeaking();
+
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(ctx.destination);
+            source.onended = () => {
+                if (activeSource === source) activeSource = null;
+            };
+            activeSource = source;
+            source.start();
+        }
+
+        function stopSpeaking() {
+            if (!activeSource) return;
+            try {
+                activeSource.stop();
+            } catch {
+                /* 已經播完就忽略 */
+            }
+            activeSource = null;
+        }
+
+        /* ---------------------- 語音生成 ---------------------- */
+
+        function isSoundOn() {
+            try {
+                return soundEnabled !== false;
+            } catch {
+                return false;
+            }
+        }
+
+        function speak(text) {
+            if (!ttsReady || !synthesizer) return;
+            const generation = speakGeneration;
+
+            const run = speakChain.then(async () => {
+                if (generation !== speakGeneration) return;
+
+                try {
+                    // BricksDisplay/vits-cmn 的 tokenizer 只接受帶聲調的拼音，
+                    // 所以先將中文轉成拼音（例：考試 → kǎo shì）再推論。
+                    const romanized = toPinyin ? toPinyin(text, { toneType: 'symbol' }) : text;
+                    const output = await synthesizer(romanized);
+                    if (generation !== speakGeneration) return;
+                    if (!output || !output.audio || output.audio.length === 0) return;
+
+                    const rate = Array.isArray(output.sampling_rate)
+                        ? output.sampling_rate[0]
+                        : output.sampling_rate;
+
+                    playFloat32Audio(output.audio, rate);
+                } catch (error) {
+                    console.error('[AI TTS] 語音生成失敗：', error);
+                }
+            });
+
+            // 讓後續廣播排隊，避免同時生成、聲音互相蓋掉
+            speakChain = run.catch(() => {});
+        }
+
+        // 自動廣播：模型就緒且提示音開啟才發聲
+        function announce(text) {
+            if (!ttsReady) return;
+            if (!isSoundOn()) return;
+            speak(text);
+        }
+
+        function scheduleFinishAnnouncement() {
+            if (!ttsReady || !isSoundOn()) return;
+
+            if (endAnnouncementTimer) {
+                clearTimeout(endAnnouncementTimer);
+            }
+            endAnnouncementTimer = setTimeout(() => {
+                endAnnouncementTimer = null;
+                speak(BROADCAST_TEXT.finish);
+            }, BELL_TAIL_MS);
+        }
+
+        /* ---------------------- 模型載入 ---------------------- */
+
+        function setEnableButton(text, stateClass) {
+            enableBtn.textContent = text;
+            enableBtn.classList.remove('tts-loading', 'tts-ready', 'tts-error');
+            if (stateClass) enableBtn.classList.add(stateClass);
+        }
+
+        enableBtn.addEventListener('click', async () => {
+            if (ttsLoading || ttsReady) return;
+
+            ttsLoading = true;
+            enableBtn.disabled = true;
+            setEnableButton('⏳ 載入語音模型中 0%...', 'tts-loading');
+
+            // 在使用者點擊的手勢中先建立 AudioContext，後續才能順利發聲
+            getAudioContext();
+
+            const fileProgress = new Map();
+            let shownPercent = 0;
+
+            const onProgress = (progress) => {
+                if (!progress || progress.status !== 'progress' || !progress.file) return;
+
+                const loaded = Number(progress.loaded) || 0;
+                const total = Number(progress.total) || 0;
+                fileProgress.set(progress.file, { loaded, total });
+
+                let sumLoaded = 0;
+                let sumTotal = 0;
+                for (const item of fileProgress.values()) {
+                    sumLoaded += item.loaded;
+                    sumTotal += item.total;
+                }
+                if (sumTotal <= 0) return;
+
+                const percent = Math.min(99, Math.floor((sumLoaded / sumTotal) * 100));
+                if (percent > shownPercent) {
+                    shownPercent = percent;
+                    enableBtn.textContent = `⏳ 載入語音模型中 ${percent}%...`;
+                }
+            };
+
+            try {
+                // 同時載入 Transformers.js 與中文轉拼音工具
+                const [transformersModule, pinyinModule] = await Promise.all([
+                    import(TRANSFORMERS_CDN),
+                    import(PINYIN_CDN),
+                ]);
+
+                const { pipeline, env } = transformersModule;
+                toPinyin = pinyinModule.pinyin;
+
+                if (env) {
+                    env.allowLocalModels = false; // 一律從 Hugging Face Hub 下載
+                }
+
+                synthesizer = await pipeline('text-to-speech', TTS_MODEL_ID, {
+                    quantized: true, // 相容舊版選項
+                    dtype: 'q8',     // 對應 onnx/model_quantized.onnx
+                    progress_callback: onProgress,
+                });
+
+                ttsReady = true;
+                enableBtn.disabled = true;
+                setEnableButton('✅ AI 語音廣播已就緒', 'tts-ready');
+                previewBtn.disabled = false;
+            } catch (error) {
+                console.error('[AI TTS] 模型載入失敗：', error);
+                ttsReady = false;
+                enableBtn.disabled = false;
+                setEnableButton('⚠️ 語音模型載入失敗，點此重試', 'tts-error');
+            } finally {
+                ttsLoading = false;
+            }
+        });
+
+        previewBtn.addEventListener('click', () => {
+            if (!ttsReady) return;
+            getAudioContext();
+            speak(BROADCAST_TEXT.preview);
+        });
+
+        /* ---------------------- 廣播觸發時機 ---------------------- */
+
+        const THRESHOLDS = [
+            { key: 'tenMinutes', seconds: 600, text: BROADCAST_TEXT.tenMinutes },
+            { key: 'threeMinutes', seconds: 180, text: BROADCAST_TEXT.threeMinutes },
+        ];
+
+        const fired = { start: false, tenMinutes: false, threeMinutes: false, finish: false };
+
+        let prevRemaining = null;
+        let prevRunning = false;
+
+        // isRunning / remainingSeconds / soundEnabled 來自 script.js 的全域變數
+        function readTimerState() {
+            try {
+                return {
+                    running: Boolean(isRunning),
+                    remaining: Number(remainingSeconds) || 0,
+                    soundOn: soundEnabled !== false,
+                };
+            } catch {
+                return null;
+            }
+        }
+
+        function resetAnnouncementState() {
+            speakGeneration += 1; // 讓進行中的生成結果作廢
+            fired.start = false;
+            fired.tenMinutes = false;
+            fired.threeMinutes = false;
+            fired.finish = false;
+            prevRemaining = null;
+            stopSpeaking();
+            if (endAnnouncementTimer) {
+                clearTimeout(endAnnouncementTimer);
+                endAnnouncementTimer = null;
+            }
+        }
+
+        function pollTimer() {
+            const state = readTimerState();
+            if (!state) return;
+
+            const { running, remaining } = state;
+
+            // 時間被調大（重設或重新設定）→ 視為新的一場考試
+            if (prevRemaining !== null && remaining > prevRemaining + 1) {
+                resetAnnouncementState();
+            }
+
+            // 開始計時瞬間
+            if (running && !prevRunning && remaining > 0 && !fired.start) {
+                fired.start = true;
+                announce(BROADCAST_TEXT.start);
+            }
+
+            // 剩 10 分鐘、剩 3 分鐘（只在跨越門檻的那一次觸發）
+            for (const item of THRESHOLDS) {
+                if (fired[item.key]) continue;
+                const crossed = prevRemaining !== null
+                    && prevRemaining > item.seconds
+                    && remaining <= item.seconds;
+                // 若一開始就剛好設定在門檻上（例如只考 10 分鐘），也補播一次
+                const startedAtThreshold = running && !prevRunning && remaining === item.seconds;
+                if (remaining > 0 && (crossed || startedAtThreshold)) {
+                    fired[item.key] = true;
+                    announce(item.text);
+                }
+            }
+
+            // 歸零：先讓原本的鐘聲響完，再播語音
+            if (!fired.finish && prevRemaining !== null && prevRemaining > 0 && remaining <= 0) {
+                fired.finish = true;
+                scheduleFinishAnnouncement();
+            }
+
+            prevRemaining = remaining;
+            prevRunning = running;
+        }
+
+        // 重設／重新設定時間時，允許下一場考試再次廣播
+        for (const id of ['resetBtn', 'applyMinutesBtn', 'applyEndTimeBtn']) {
+            document.getElementById(id)?.addEventListener('click', resetAnnouncementState);
+        }
+
+        setInterval(pollTimer, 250);
+    </script>
+</body>
+</html>

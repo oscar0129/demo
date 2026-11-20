@@ -1,0 +1,235 @@
+:root {
+    --bg-color: #0f172a;
+    --panel-bg: #1e293b;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --color-normal: #34d399;   /* 正常：薄荷綠 */
+    --color-warning: #fbbf24;  /* 剩10分：琥珀黃 */
+    --color-danger: #f87171;   /* 剩3分：警示紅 */
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Microsoft JhengHei", "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1vh;
+    padding: 2vh 3vw;
+    overflow: hidden;
+    user-select: none;
+}
+
+/* 頂部資訊列：現在時間與控制按鈕 */
+.top-bar {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    font-size: clamp(1.1rem, 2.2vw, 2.2rem);
+    color: var(--text-muted);
+}
+
+.current-clock {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: #cbd5e1;
+}
+
+.top-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.top-actions button {
+    background: var(--panel-bg);
+    color: var(--text-main);
+    border: 1px solid #334155;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.top-actions button:hover {
+    background: #334155;
+}
+
+/* 中央主顯示區：科目與超大倒數時間 */
+.main-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    flex-grow: 1;
+    width: 100%;
+    min-height: 0;
+}
+
+.subject-title {
+    font-size: clamp(2.5rem, 6vw, 6.5rem);
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    margin-bottom: 1vh;
+    padding: 0.2em 0.6em;
+    border-radius: 16px;
+    border: 2px dashed transparent;
+    cursor: text;
+    transition: border-color 0.2s, background 0.2s;
+    outline: none;
+    max-width: 95vw;
+    overflow-wrap: anywhere;
+}
+
+.subject-title:hover,
+.subject-title:focus {
+    border-color: #475569;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.subject-hint {
+    font-size: 1rem;
+    color: var(--text-muted);
+    margin-bottom: 2vh;
+}
+
+.timer-display {
+    font-size: clamp(6rem, 22vw, 24rem);
+    font-weight: 900;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-normal);
+    text-shadow: 0 0 40px rgba(52, 211, 153, 0.2);
+    transition: color 0.5s ease, text-shadow 0.5s ease;
+}
+
+.timer-display.warning {
+    color: var(--color-warning);
+    text-shadow: 0 0 40px rgba(251, 191, 36, 0.25);
+}
+
+.timer-display.danger {
+    color: var(--color-danger);
+    text-shadow: 0 0 50px rgba(248, 113, 113, 0.35);
+}
+
+.timer-display.times-up {
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.status-text {
+    font-size: clamp(1.5rem, 3vw, 3rem);
+    margin-top: 2vh;
+    color: var(--text-muted);
+    font-weight: 600;
+    min-height: 1.5em;
+    transition: color 0.3s;
+}
+
+/* 底部設定與控制面板 */
+.control-panel {
+    background: var(--panel-bg);
+    padding: 1.2rem 2rem;
+    border-radius: 16px;
+    border: 1px solid #334155;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 1100px;
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+.control-panel.hidden {
+    display: none;
+}
+
+.setting-group {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 1.1rem;
+}
+
+input[type="number"],
+input[type="time"] {
+    background: #0f172a;
+    color: white;
+    border: 1px solid #475569;
+    padding: 0.5rem 0.8rem;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    width: 90px;
+    text-align: center;
+    color-scheme: dark;
+}
+
+input[type="time"] {
+    width: 135px;
+}
+
+.btn {
+    padding: 0.6rem 1.4rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.1s, filter 0.2s;
+}
+
+.btn:active {
+    transform: scale(0.97);
+}
+
+.btn-set { background: #3b82f6; color: white; }
+.btn-start { background: #10b981; color: #064e3b; }
+.btn-pause { background: #f59e0b; color: #451a03; }
+.btn-reset { background: #64748b; color: white; }
+
+.btn:hover { filter: brightness(1.1); }
+
+.divider {
+    width: 1px;
+    height: 30px;
+    background: #334155;
+}
+
+@media (max-width: 768px) {
+    body {
+        padding: 1.5vh 2vw;
+        overflow-y: auto;
+    }
+
+    .divider { display: none; }
+
+    .control-panel { padding: 1rem; gap: 1rem; }
+
+    .setting-group { font-size: 1rem; }
+
+    .btn { padding: 0.5rem 1rem; font-size: 1rem; }
+
+    .subject-hint { display: none; }
+}
